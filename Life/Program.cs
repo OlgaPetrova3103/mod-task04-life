@@ -134,8 +134,6 @@ namespace cli_life
     
     class Program
     {
-              
-{
         public class Item
         {
             public int width;
