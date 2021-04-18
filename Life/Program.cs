@@ -230,7 +230,7 @@ namespace cli_life
         }
                     static void Main(string[] args)
         {
-            Reset();
+            Reset(1);
             while(true)
             {
                 Console.Clear();
