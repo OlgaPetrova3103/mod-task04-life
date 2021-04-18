@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -86,46 +89,171 @@ namespace cli_life
             }
         }
     }
-    class Program
+    public class BThread
     {
-        static Board board;
-        static private void Reset()
+        Thread BThread, stop;
+        public bool run = false;
+        string options;
+
+        public bThread(string optionsFile)
         {
-            board = new Board(
-                width: 50,
-                height: 20,
-                cellSize: 1,
-                liveDensity: 0.5);
+            options = optionsFile;
+            BThread = new Thread(this.boardRun);
+            stop = new Thread(this.pause);
         }
-        static void Render()
+    }
+    
+            public string ToString()
         {
-            for (int row = 0; row < board.Rows; row++)
+            string res = "";
+            for (int row = 0; row < Rows; row++)
             {
-                for (int col = 0; col < board.Columns; col++)   
+                for (int col = 0; col < Columns; col++)
                 {
-                    var cell = board.Cells[col, row];
+                    var cell = Cells[col, row];
                     if (cell.IsAlive)
                     {
-                        Console.Write('*');
+                        res+="*";
                     }
                     else
                     {
-                        Console.Write(' ');
+                        res+=" ";
                     }
                 }
-                Console.Write('\n');
+                res+="\n";
             }
+            return res;
+        }
+
+        public void setState(string state)
+        {
+            string[] subRows = state.Split('\n');
+            for (int row = 0; row < Rows; row++)
+            {
+                for (int col = 0; col < Columns; col++)
+                {
+                    char s = subRows[row][col];
+                    var cell = new Cell();
+                    if (s == '*')
+                    {
+                        cell.IsAlive = true;
+                    }
+                    else
+                    {
+                        cell.IsAlive = false;
+                    }
+                    Cells[col, row] = cell;
+                }
+            }
+            ConnectNeighbors();
+        }
+    }
+    
+    
+    class Program
+    {
+        static Board board;
+        static Thread BoardThread, stop;
+        static public bool run = true;
+        static object lockOn;
+
+        static public void startThreads()
+        {
+            BoardThread = new Thread(boardRun);
+            stop = new Thread(pause);
+            lockOn = new object();
+            BThread.Start();
+            stop.Start();
+        }
+
+        static void boardRun()
+        {
+            while (true)
+            {
+                if (run)
+                {
+                    lock (lockOn)
+                    {
+                        Console.SetCursorPosition(0, 0);
+                        Render();
+                        board.Advance();
+                        Thread.Sleep(100);
+                    }
+                }
+            }
+        }
+
+        static void pause()
+        {
+            while (true)
+            {
+                Console.ReadKey();
+                lock (lockOn)
+                {
+                    run = false;
+                    while (true)
+                    {
+                        Console.Clear();
+                        Render();
+                        Console.WriteLine("\npress 1 to save, 2 to load or any other key to continue\n");
+                        char c = Console.ReadKey().KeyChar;
+                        if (c == '1')
+                        {
+                            Console.WriteLine("\nenter file name (with .txt)\n");
+                            string fileName = Console.ReadLine();
+                            saveToFile(fileName);
+                        }
+                        else if (c == '2')
+                        {
+                            Console.WriteLine("\nenter file name (with .txt)\n");
+                            string fileName = Console.ReadLine();
+                            loadFromFile(fileName);
+                        }
+                        else
+                        {
+                            Console.Clear();
+                            run = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        static private void Reset(string optionsFile = "")
+        {
+            if (optionsFile == "")
+            {
+                board = new Board(
+                    width: 50,
+                    height: 20,
+                    cellSize: 1,
+                    liveDensity: 0.5);
+            } else
+            {
+                string optionsString = File.ReadAllText(optionsFile);
+                Dictionary<string, double>  options = JsonSerializer.Deserialize<Dictionary<string, double>>(optionsString);
+                board = new Board((int)options["width"], (int)options["height"], (int)options["cellSize"], options["liveDensity"]);
+            }
+        }
+        static void Render()
+        {
+            Console.Write(board.ToString());
+        }
+
+        static void saveToFile(string fileName)
+        {
+            File.WriteAllText(fileName, board.ToString());
+        }
+
+        static void loadFromFile(string fileName)
+        {
+            string state = File.ReadAllText(fileName);
+            board.setState(state);
         }
         static void Main(string[] args)
         {
-            Reset();
-            while(true)
-            {
-                Console.Clear();
-                Render();
-                board.Advance();
-                Thread.Sleep(1000);
-            }
+            Reset("../../../life.json");
+            startThreads();
         }
     }
 }
