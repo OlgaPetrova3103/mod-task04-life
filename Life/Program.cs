@@ -67,7 +67,7 @@ namespace cli_life
         
         else//read file
             {
-                using (StreamReader r = new StreamReader("test.txt"))
+                using (StreamReader r = new StreamReader("test1.txt"))
                 {
                     List<string> matr = new List<string>();
                     string curstr;
