@@ -227,6 +227,7 @@ namespace cli_life
                     r.Write('\n');
                 }
             }
+        }
                     static void Main(string[] args)
         {
             Reset();
