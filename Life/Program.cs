@@ -227,5 +227,16 @@ namespace cli_life
                     r.Write('\n');
                 }
             }
+                    static void Main(string[] args)
+        {
+            Reset();
+            while(true)
+            {
+                Console.Clear();
+                Render();
+                board.Advance();
+                Thread.Sleep(1000);
+            }
         }
     }
+}
