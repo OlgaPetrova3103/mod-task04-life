@@ -8,14 +8,44 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Threading;
 
-namespace cli_life
+namespace options
 {
+    public class BoardState {
+        public int width { get; set; }
+        public int height { get; set; }
+        public string[] cellstext { get; set; }
+
+        public Cell[,] GetCells(){
+            Cell[,] Cells;
+            Cells = new Cell[width , height];
+            for (int x = 0; x < width; x++)
+                for (int y = 0; y < height; y++){
+                    Cells[x, y] = new Cell();
+                    Cells[x, y].IsAlive = (cellstext[y][x] == '*');
+                }
+
+            return Cells;
+        }
+        public BoardState(){}
+
+        public BoardState(Board board) {
+            this.width = board.Width;
+            this.height = board.Height;
+            cellstext = new string[height];
+            for(int i = 0; i < height; i++){
+                cellstext[i] = "";
+                for(int j = 0; j < width; j++){
+                    cellstext[i] += board.Cells[i, j].IsAlive ? "*": " ";
+                }
+            }
+        }
+    }
     public class Cell
     {
         public bool IsAlive;
         public readonly List<Cell> neighbors = new List<Cell>();
         private bool IsAliveNext;
-        public void DetermineNextLiveState()
+        public void PrepareStep()
         {
             int liveNeighbors = neighbors.Where(x => x.IsAlive).Count();
             if (IsAlive)
@@ -23,73 +53,39 @@ namespace cli_life
             else
                 IsAliveNext = liveNeighbors == 3;
         }
-        public void Advance()
-        {
+        public void DoStep(){
             IsAlive = IsAliveNext;
         }
+
     }
     public class Board
     {
         public readonly Cell[,] Cells;
-        public readonly int CellSize;
+        public int Width { get { return Cells.GetLength(0); } }
+        public int Height { get { return Cells.GetLength(1); } }
 
-        public int Columns { get { return Cells.GetLength(0); } }
-        public int Rows { get { return Cells.GetLength(1); } }
-        public int Width { get { return Columns * CellSize; } }
-        public int Height { get { return Rows * CellSize; } }
-
-        public Board(int width, int height, int cellSize, double liveDensity = .1)
+        public Board(int width, int height, double liveDensity = .1)
         {
-            CellSize = cellSize;
 
-            Cells = new Cell[width / cellSize, height / cellSize];
-            for (int x = 0; x < Columns; x++)
-                for (int y = 0; y < Rows; y++)
+            Cells = new Cell[width, height ];
+            for (int x = 0; x < width; x++)
+                for (int y = 0; y < height; y++)
                     Cells[x, y] = new Cell();
 
             ConnectNeighbors();
             Randomize(liveDensity);
         }
-        
-        public Board(int value, int width, int height, int cellSize, double liveDensity = .1)
-        {
-            CellSize = cellSize;
-            if (value == 0)
-            {
-                Cells = new Cell[width / cellSize, height / cellSize];
-                for (int x = 0; x < Columns; x++)
-                    for (int y = 0; y < Rows; y++)
-                        Cells[x, y] = new Cell();
 
-                ConnectNeighbors();
-                Randomize(liveDensity);
-            }
-        
-        else//read file
-            {
-                using (StreamReader r = new StreamReader("test1.txt"))
-                {
-                    List<string> matr = new List<string>();
-                    string curstr;
-                    int max = 0;
-                    while ((curstr = r.ReadLine()) != null)
-                    {
-                        matr.Add(curstr);
-                        if (curstr.Length > max) max = curstr.Length;
-                    }
-                    if (max == 0) return;
-                    Cells = new Cell[max / cellSize, matr.Count/ cellSize];
-                    for (int x = 0; x < Columns; x++)
-                        for (int y = 0; y < Rows; y++)
-                        {
-                            if (matr[y].Length <= x)
-                                Cells[x, y] = new Cell(0);
-                            else if (matr[y][x] == '*') Cells[x, y] = new Cell(1);
-                            else Cells[x, y] = new Cell(0);
-                        }
-                    ConnectNeighbors();
-                }
-            }
+        public Board(string filepath){
+            BoardState state = JsonSerializer.Deserialize<BoardState>(File.ReadAllText(filepath));
+            Cells = state.GetCells();
+            ConnectNeighbors();
+        }
+
+        public void SaveState(string filepath){
+            BoardState state = new BoardState(this);
+            string jsonString = JsonSerializer.Serialize<BoardState>(state);
+            File.WriteAllText(filepath, jsonString);
         }
 
         readonly Random rand = new Random();
@@ -102,21 +98,22 @@ namespace cli_life
         public void Advance()
         {
             foreach (var cell in Cells)
-                cell.DetermineNextLiveState();
+                cell.PrepareStep();
             foreach (var cell in Cells)
-                cell.Advance();
+                cell.DoStep();
         }
+
         private void ConnectNeighbors()
         {
-            for (int x = 0; x < Columns; x++)
+            for (int x = 0; x < Width; x++)
             {
-                for (int y = 0; y < Rows; y++)
+                for (int y = 0; y < Height; y++)
                 {
-                    int xL = (x > 0) ? x - 1 : Columns - 1;
-                    int xR = (x < Columns - 1) ? x + 1 : 0;
+                    int xL = (x > 0) ? x - 1 : Width - 1;
+                    int xR = (x < Width - 1) ? x + 1 : 0;
 
-                    int yT = (y > 0) ? y - 1 : Rows - 1;
-                    int yB = (y < Rows - 1) ? y + 1 : 0;
+                    int yT = (y > 0) ? y - 1 : Height - 1;
+                    int yB = (y < Height - 1) ? y + 1 : 0;
 
                     Cells[x, y].neighbors.Add(Cells[xL, yT]);
                     Cells[x, y].neighbors.Add(Cells[x, yT]);
@@ -130,113 +127,48 @@ namespace cli_life
             }
         }
     }
-    
-    
     class Program
     {
-        public class Item
-        {
-            public int width;
-            public int height;
-            public int cellSize;
-            public double liveDensity;
-        }
         static Board board;
-        static private void Reset(int val)
+        static private void Reset()
         {
-            using (StreamReader r = new StreamReader("life.json"))
-            {
-                Item items = new Item();
-                string str = r.ReadToEnd();
-                string tmp_str = "";
-                int i = 0;
-                while (str[i] != ':') i++;
-                i++;
-                while (str[i] != ',')
-                {
-                    tmp_str = tmp_str + str[i];
-                    i++;
-                }
-                items.width = Int32.Parse(tmp_str);
-                while (str[i] != ':') i++;
-                i++;
-                tmp_str = "";
-                while (str[i] != ',')
-                {
-                    tmp_str = tmp_str + str[i];
-                    i++;
-                }
-                items.height = Int32.Parse(tmp_str);
-                while (str[i] != ':') i++;
-                i++;
-                tmp_str = "";
-                while (str[i] != ',')
-                {
-                    tmp_str = tmp_str + str[i];
-                    i++;
-                }
-                items.cellSize = Int32.Parse(tmp_str);
-                while (str[i] != ':') i++;
-                i++;
-                tmp_str = "";
-                while (str[i] != '.')
-                {
-                    tmp_str = tmp_str + str[i];
-                    i++;
-                }
-                i++;
-                items.liveDensity = Int32.Parse(tmp_str);
-                tmp_str = "";
-                while (str[i] != '\r')
-                {
-                    tmp_str = tmp_str + str[i];
-                    i++;
-                }
-                int st = 1;
-                for (int j = 0; j < tmp_str.Length; j++) st = st * 10;
-                items.liveDensity = items.liveDensity + (float)Int32.Parse(tmp_str) / st;
-                board = new Board(
-                    val,
-                    width: items.width,
-                    height: items.height,
-                    cellSize: items.cellSize,
-                    liveDensity: items.liveDensity);
-            }
+            board = new Board(
+                width: 30,
+                height: 15,
+                liveDensity: 0.5);
         }
         static void Render()
         {
-            using (StreamWriter r = new StreamWriter("test_1.txt"))
+            for (int row = 0; row < board.Height; row++)
             {
-                for (int row = 0; row < board.Rows; row++)
+                for (int col = 0; col < board.Width; col++)
                 {
-                    for (int col = 0; col < board.Columns; col++)
+                    var cell = board.Cells[col, row];
+                    if (cell.IsAlive)
                     {
-                        var cell = board.Cells[col, row];
-                        if (cell.IsAlive)
-                        {
-                            Console.Write('*');
-                            r.Write('*');
-                        }
-                        else
-                        {
-                            Console.Write(' ');
-                            r.Write(' ');
-                        }
+                        Console.Write('*');
                     }
-                    Console.Write('\n');
-                    r.Write('\n');
+                    else
+                    {
+                        Console.Write(' ');
+                    }
                 }
+                Console.Write('\n');
             }
         }
-                    static void Main(string[] args)
+        static void Main(string[] args)
         {
-            Reset(1);
+            Reset();
+            board = new Board("life.json");
+            int iter = 0;
             while(true)
             {
                 Console.Clear();
+                Console.WriteLine("Iter: " + iter.ToString());
                 Render();
                 board.Advance();
                 Thread.Sleep(1000);
+                iter ++;
             }
         }
     }
